@@ -1,6 +1,7 @@
-/*
+package slackapi
 
-mybot - Illustrative Slack bot in Go
+/*
+Code based on mybot (Illustrative Slack bot in Go) https://github.com/rapidloop/mybot
 
 Copyright (c) 2015 RapidLoop
 
@@ -22,8 +23,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
-
-package main
 
 import (
 	"encoding/json"
@@ -50,9 +49,9 @@ type responseSelf struct {
 	Id string `json:"id"`
 }
 
-// slackStart does a rtm.start, and returns a websocket URL and user ID. The
+// start does a rtm.start, and returns a websocket URL and user ID. The
 // websocket URL can be used to initiate an RTM session.
-func slackStart(token string) (wsurl, id string, err error) {
+func start(token string) (wsurl, id string, err error) {
 	url := fmt.Sprintf("https://slack.com/api/rtm.start?token=%s", token)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -89,27 +88,31 @@ func slackStart(token string) (wsurl, id string, err error) {
 
 type Message struct {
 	Id      uint64 `json:"id"`
+	Ts      string `json:"ts"`
 	Type    string `json:"type"`
 	Channel string `json:"channel"`
+	User    string `json:"user"`
 	Text    string `json:"text"`
 }
 
-func getMessage(ws *websocket.Conn) (m Message, err error) {
+// GetMessage gets RTM
+func GetMessage(ws *websocket.Conn) (m Message, err error) {
 	err = websocket.JSON.Receive(ws, &m)
 	return
 }
 
 var counter uint64
 
-func postMessage(ws *websocket.Conn, m Message) error {
+// PostMessage sends RTM
+func PostMessage(ws *websocket.Conn, m Message) error {
 	m.Id = atomic.AddUint64(&counter, 1)
 	return websocket.JSON.Send(ws, m)
 }
 
-// Starts a websocket-based Real Time API session and return the websocket
-// and the ID of the (bot-)user whom the token belongs to.
-func slackConnect(token string) (*websocket.Conn, string) {
-	wsurl, id, err := slackStart(token)
+// Connect starts a websocket-based Real Time API session and return
+// the websocket and the ID of the (bot-)user whom the token belongs to.
+func Connect(token string) (*websocket.Conn, string) {
+	wsurl, id, err := start(token)
 	if err != nil {
 		log.Fatal(err)
 	}
