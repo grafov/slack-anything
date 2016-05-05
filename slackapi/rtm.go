@@ -41,12 +41,12 @@ import (
 type responseRtmStart struct {
 	Ok    bool         `json:"ok"`
 	Error string       `json:"error"`
-	Url   string       `json:"url"`
+	URL   string       `json:"url"`
 	Self  responseSelf `json:"self"`
 }
 
 type responseSelf struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 // start does a rtm.start, and returns a websocket URL and user ID. The
@@ -78,16 +78,16 @@ func start(token string) (wsurl, id string, err error) {
 	}
 
 	wsurl = respObj.Url
-	id = respObj.Self.Id
+	id = respObj.Self.ID
 	return
 }
 
 // These are the messages read off and written into the websocket. Since this
-// struct serves as both read and write, we include the "Id" field which is
+// struct serves as both read and write, we include the "ID" field which is
 // required only for writing.
 
 type Message struct {
-	Id      uint64 `json:"id"`
+	ID      uint64 `json:"id"`
 	Ts      string `json:"ts"`
 	Type    string `json:"type"`
 	Channel string `json:"channel"`
@@ -105,7 +105,7 @@ var counter uint64
 
 // PostMessage sends RTM
 func PostMessage(ws *websocket.Conn, m Message) error {
-	m.Id = atomic.AddUint64(&counter, 1)
+	m.ID = atomic.AddUint64(&counter, 1)
 	return websocket.JSON.Send(ws, m)
 }
 

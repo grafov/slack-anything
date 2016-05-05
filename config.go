@@ -10,8 +10,11 @@ import (
 )
 
 var (
-	config map[string]interface{}
-	blocks []*configBlock
+	settings struct {
+		Token string
+		Me    []string
+	}
+	configBlocks []*configBlock
 )
 
 type configBlock struct {
@@ -37,13 +40,13 @@ type executor interface {
 	Do(*slackapi.Message) error
 }
 
-func parseConfigFile() error {
+func parseConfigFile(filename string) error {
 	var (
 		file *os.File
 		err  error
 	)
 
-	file, err = os.Open("~/.slackwatcher")
+	file, err = os.Open(filename)
 	if err != nil {
 		return err
 	}
