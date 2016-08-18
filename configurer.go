@@ -50,6 +50,10 @@ func configurer(errLog, infoLog chan string, config chan configTask, configName 
 		settings, configBlocks, err = parseConfigFile(fd)
 		// XXX compare with prev parsed blocks (или делать это в контроллере)
 		fmt.Println(settings, configBlocks, err)
+		for _, b := range configBlocks {
+			fmt.Printf("%+v %+v\n", b, b.Checks)
+		}
+		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -59,6 +63,7 @@ type (
 		Me    []string
 	}
 	configBlock struct {
+		No      uint16
 		Checks  []checkWithArgs
 		Actions []execWithArgs
 	}
@@ -108,13 +113,12 @@ func parseConfigFile(file *os.File) (settingsBlock, []*configBlock, error) {
 	)
 	scanner := bufio.NewScanner(file)
 	var (
-		lineNo  uint
-		blockNo uint
+		lineNo  uint16
+		blockNo uint16
 	)
 	for scanner.Scan() {
 		if !inBlock {
-			block = &configBlock{}
-			blockNo++
+			block = new(configBlock)
 		}
 		lineNo++
 		line = strings.TrimSpace(scanner.Text())
@@ -124,6 +128,8 @@ func parseConfigFile(file *os.File) (settingsBlock, []*configBlock, error) {
 		case line == "":
 			switch {
 			case inBlock:
+				blockNo++
+				block.No = blockNo
 				blocks = append(blocks, block)
 				inBlock = false
 			case badBlock:
@@ -141,24 +147,27 @@ func parseConfigFile(file *os.File) (settingsBlock, []*configBlock, error) {
 			not bool
 			cmd string
 		)
-		switch cmd = line[1:]; line[0] {
+		switch cmd = strings.TrimSpace(line[1:]); line[0] {
 		case '<': // the checks
 			inBlock = true
 			if cmd[0] == '!' {
 				not = true
 				cmd = cmd[1:]
 			}
-			switch args := cmd[1:]; cmd[0] {
+			switch arg := strings.TrimSpace(cmd[1:]); cmd[0] {
 			case '#': // check for a channel
-				name := strings.TrimSpace(args)
-				if !channelNameMask.MatchString(name) {
-					errs.append(lineNo, blockNo, "invalid channel name", name)
+				if !channelNameMask.MatchString(arg) {
+					errs.append(lineNo, blockNo, "invalid channel name", arg)
 					continue
 				}
-				block.Checks = append(block.Checks, checkWithArgs{Type: checkChannel, Not: not, Name: name})
+				block.Checks = append(block.Checks, checkWithArgs{Type: checkChannel, Not: not, Name: arg})
 				continue
 			case '@': // check for a user
-				//block.Checks = append(block.Checks, newUserCheck(not, args))
+				if !channelNameMask.MatchString(arg) {
+					errs.append(lineNo, blockNo, "invalid username", arg)
+					continue
+				}
+				block.Checks = append(block.Checks, checkWithArgs{Type: checkUser, Not: not, Name: arg})
 				continue
 			}
 			switch cmd {
@@ -183,8 +192,8 @@ type (
 		BlockErrors []parsingError
 	}
 	parsingError struct {
-		LineNo  uint
-		BlockNo uint
+		LineNo  uint16
+		BlockNo uint16
 		Msg     string
 		Args    []interface{}
 	}
@@ -195,10 +204,12 @@ func (e parsingErrors) Error() string {
 	for _, err := range e.BlockErrors {
 		buf.WriteString(fmt.Sprintf("line: %d block: %d\t%s: %s\n", err.LineNo, err.BlockNo, err.Msg, err.Args))
 	}
-	buf.WriteString(e.ScanError.Error())
+	if e.ScanError != nil {
+		buf.WriteString(e.ScanError.Error())
+	}
 	return buf.String()
 }
 
-func (e *parsingErrors) append(lineNo, blockNo uint, msg string, args ...interface{}) {
+func (e *parsingErrors) append(lineNo, blockNo uint16, msg string, args ...interface{}) {
 	e.BlockErrors = append(e.BlockErrors, parsingError{lineNo, blockNo, msg, args})
 }
