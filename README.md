@@ -8,4 +8,4 @@ You disappointed and closed this page.
 
 You want come here later and check again though.
 
-+1 for you CURiosity.
++1 for you CURiosity skill.
