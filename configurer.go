@@ -86,6 +86,8 @@ type (
 const (
 	checkUser checkCode = iota
 	checkChannel
+	checkString
+	checkRegexp
 	execNothing execCode = iota
 	execExtCmd
 )
@@ -161,23 +163,24 @@ func parseConfigFile(file *os.File) (settingsBlock, []*configBlock, error) {
 					continue
 				}
 				block.Checks = append(block.Checks, checkWithArgs{Type: checkChannel, Not: not, Name: arg})
-				continue
 			case '@': // check for a user
 				if !channelNameMask.MatchString(arg) {
 					errs.append(lineNo, blockNo, "invalid username", arg)
 					continue
 				}
 				block.Checks = append(block.Checks, checkWithArgs{Type: checkUser, Not: not, Name: arg})
-				continue
-			}
-			switch cmd {
-			case "?": // содержание подстроки
-			case "~": // регулярка
-			case "search": // полнотекстовый поиск
-			case "if": // проверка условия
+			case '?': // содержание подстроки
+				block.Checks = append(block.Checks, checkWithArgs{Type: checkString, Not: not, Name: arg})
+			case '~': // регулярка
+				block.Checks = append(block.Checks, checkWithArgs{Type: checkRegexp, Not: not, Name: arg})
+				//			case "search": // полнотекстовый поиск
+				//			case "if": // проверка условия
 			}
 		case '>': // actions
 			inBlock = true
+			switch cmd {
+
+			}
 		default:
 			badBlock = true
 		}
