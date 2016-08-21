@@ -38,9 +38,9 @@ func runConfigurer(logErr, logInfo chan string, configName string) chan configTa
 
 func configurer(done chan bool, errLog, infoLog chan string, config chan configTask, configName string) {
 	var (
-		fd           *os.File
-		err          error
-		settings     settingsBlock
+		fd  *os.File
+		err error
+		//		settings     settingsBlock
 		configBlocks []*configBlock
 	)
 	for {
@@ -52,9 +52,11 @@ func configurer(done chan bool, errLog, infoLog chan string, config chan configT
 				errLog <- fmt.Sprintf("can't read configuration from %s", configName)
 				time.Sleep(waitForValidConfigFile)
 			}
-			settings, configBlocks, err = parseConfigFile(fd)
+			_, configBlocks, err = parseConfigFile(fd)
 			// XXX compare with prev parsed blocks (или делать это в контроллере)
-			fmt.Println(settings, configBlocks, err)
+			if err != nil {
+				errLog <- err.Error()
+			}
 			for _, b := range configBlocks {
 				fmt.Printf("%+v %+v\n", b, b.Checks)
 			}
@@ -95,6 +97,8 @@ const (
 	checkString
 	checkRegexp
 	execNothing execCode = iota
+	execChannel
+	execUser
 	execExtCmd
 )
 
@@ -189,8 +193,21 @@ func parseConfigFile(file *os.File) (settingsBlock, []*configBlock, error) {
 			}
 		case '>': // actions
 			inBlock = true
-			switch cmd {
-
+			switch args := strings.Split(strings.TrimSpace(cmd[1:]), " "); cmd[0] {
+			case '#': // channel actions
+				if len(args) > 1 && channelNameMask.MatchString(args[0]) {
+					block.Actions = append(block.Actions, execWithArgs{Type: execChannel, Not: not, Name: args[0], Args: args[1:]})
+				} else {
+					errs.append(lineNo, blockNo, "invalid action format", cmd[1:])
+					continue
+				}
+			case '@': // user actions
+				if len(args) > 1 && userNameMask.MatchString(args[0]) {
+					block.Actions = append(block.Actions, execWithArgs{Type: execUser, Not: not, Name: args[0], Args: args[1:]})
+				} else {
+					errs.append(lineNo, blockNo, "invalid action format", cmd[1:])
+					continue
+				}
 			}
 		default:
 			badBlock = true
