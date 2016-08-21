@@ -29,13 +29,14 @@ type configTask struct {
 	ConfigAction configActionCode
 }
 
-func initConfigurer(logErr, logInfo chan string, configName string) chan configTask {
+func runConfigurer(logErr, logInfo chan string, configName string) chan configTask {
 	config := make(chan configTask, 1)
-	go configurer(logErr, logInfo, config, configName)
+	done := addToRegistry()
+	go configurer(done, logErr, logInfo, config, configName)
 	return config
 }
 
-func configurer(errLog, infoLog chan string, config chan configTask, configName string) {
+func configurer(done chan bool, errLog, infoLog chan string, config chan configTask, configName string) {
 	var (
 		fd           *os.File
 		err          error
@@ -43,17 +44,22 @@ func configurer(errLog, infoLog chan string, config chan configTask, configName 
 		configBlocks []*configBlock
 	)
 	for {
-		if fd, err = os.Open(configName); err != nil {
-			errLog <- fmt.Sprintf("can't read configuration from %s", configName)
-			time.Sleep(waitForValidConfigFile)
+		select {
+		case <-done:
+			return
+		default:
+			if fd, err = os.Open(configName); err != nil {
+				errLog <- fmt.Sprintf("can't read configuration from %s", configName)
+				time.Sleep(waitForValidConfigFile)
+			}
+			settings, configBlocks, err = parseConfigFile(fd)
+			// XXX compare with prev parsed blocks (или делать это в контроллере)
+			fmt.Println(settings, configBlocks, err)
+			for _, b := range configBlocks {
+				fmt.Printf("%+v %+v\n", b, b.Checks)
+			}
+			time.Sleep(1 * time.Second)
 		}
-		settings, configBlocks, err = parseConfigFile(fd)
-		// XXX compare with prev parsed blocks (или делать это в контроллере)
-		fmt.Println(settings, configBlocks, err)
-		for _, b := range configBlocks {
-			fmt.Printf("%+v %+v\n", b, b.Checks)
-		}
-		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -156,7 +162,8 @@ func parseConfigFile(file *os.File) (settingsBlock, []*configBlock, error) {
 				not = true
 				cmd = cmd[1:]
 			}
-			switch arg := strings.TrimSpace(cmd[1:]); cmd[0] {
+			arg := strings.TrimSpace(cmd[1:])
+			switch cmd[0] {
 			case '#': // check for a channel
 				if !channelNameMask.MatchString(arg) {
 					errs.append(lineNo, blockNo, "invalid channel name", arg)
@@ -173,8 +180,12 @@ func parseConfigFile(file *os.File) (settingsBlock, []*configBlock, error) {
 				block.Checks = append(block.Checks, checkWithArgs{Type: checkString, Not: not, Name: arg})
 			case '~': // регулярка
 				block.Checks = append(block.Checks, checkWithArgs{Type: checkRegexp, Not: not, Name: arg})
-				//			case "search": // полнотекстовый поиск
-				//			case "if": // проверка условия
+			default:
+				// проверка многосимвольных команд
+				switch arg {
+				case "search": // полнотекстовый поиск
+				case "if": // проверка условия
+				}
 			}
 		case '>': // actions
 			inBlock = true

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func initLogger() (chan string, chan string) {
+func runLogger() (chan string, chan string) {
 	logErr := make(chan string, 32)
 	logInfo := make(chan string, 32)
 	go logger(logErr, logInfo)
